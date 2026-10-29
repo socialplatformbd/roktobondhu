@@ -1,0 +1,25 @@
+name: Reset and unzip
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          set -e
+          ZIP="$(ls *.zip | head -1)"
+          cp "$ZIP" /tmp/project.zip
+          git ls-files | grep -v '^\.github/' | grep -v '\.zip$' | xargs -d '\n' git rm -q
+          rm -f ./*.zip
+          mkdir /tmp/x && unzip -q /tmp/project.zip -d /tmp/x
+          mkdir -p workflow-files
+          cp /tmp/x/.github/workflows/*.yml workflow-files/
+          rm -rf /tmp/x/.github
+          cp -a /tmp/x/. .
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Restore project structure"
+          git push
