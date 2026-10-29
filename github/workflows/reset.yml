@@ -1,5 +1,7 @@
 name: Reset and unzip
-on: workflow_dispatch
+on:
+  push:
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
@@ -9,7 +11,8 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           set -e
-          ZIP="$(ls *.zip | head -1)"
+          ZIP="$(ls *.zip 2>/dev/null | head -1 || true)"
+          if [ -z "$ZIP" ]; then echo "No zip in repo root, nothing to do"; exit 0; fi
           cp "$ZIP" /tmp/project.zip
           git ls-files | grep -v '^\.github/' | grep -v '\.zip$' | xargs -d '\n' git rm -q
           rm -f ./*.zip
