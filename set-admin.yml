@@ -1,0 +1,26 @@
+name: Set admin claim
+# Run manually and enter the user's UID (Firebase Console > Authentication > Users).
+on:
+  workflow_dispatch:
+    inputs:
+      uid:
+        description: "Firebase user UID to make admin"
+        required: true
+jobs:
+  admin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - name: Write service account key
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/sa.json"
+      - name: Set claim
+        env:
+          UID_INPUT: ${{ github.event.inputs.uid }}
+        run: node scripts/setAdminClaim.cjs "$UID_INPUT" "$RUNNER_TEMP/sa.json"
+      - name: Remove key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"

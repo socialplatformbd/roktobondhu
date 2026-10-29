@@ -1,0 +1,336 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function admin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
+    function validBloodGroup(bg) {
+      return bg in ['A+','A-','B+','B-','O+','O-','AB+','AB-'];
+    }
+
+    function validArea(area) {
+      return area in ['anwara', 'halishahar'];
+    }
+
+    function validLanguage(lang) {
+      return lang in ['bn', 'en'];
+    }
+
+    match /users_private/{uid} {
+      allow get: if owner(uid) || admin();
+      // Admins may list registered users for moderation/support. Everyone else: never.
+      allow list: if admin();
+
+      allow create: if owner(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.keys().hasOnly([
+          'uid','displayName','email','emailVerified','phone','bloodGroup',
+          'area','donorConsent','donorAvailability','preferredLanguage',
+          'consentTimestamp','createdAt','updatedAt'
+        ])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() >= 1
+        && request.resource.data.displayName.size() <= 80
+        && request.resource.data.donorConsent is bool
+        && request.resource.data.donorAvailability in ['available','paused']
+        && validLanguage(request.resource.data.preferredLanguage)
+        && (!('bloodGroup' in request.resource.data) || validBloodGroup(request.resource.data.bloodGroup))
+        && (!('area' in request.resource.data) || validArea(request.resource.data.area))
+        && (!('phone' in request.resource.data) || (request.resource.data.phone is string && request.resource.data.phone.size() <= 20))
+        && (request.resource.data.donorConsent == false ||
+            (
+              'bloodGroup' in request.resource.data && 'area' in request.resource.data
+              && existsAfter(/databases/$(database)/documents/donor_public/$(uid))
+              && getAfter(/databases/$(database)/documents/donor_public/$(uid)).data.bloodGroup == request.resource.data.bloodGroup
+              && getAfter(/databases/$(database)/documents/donor_public/$(uid)).data.area == request.resource.data.area
+              && getAfter(/databases/$(database)/documents/donor_public/$(uid)).data.donorAvailability == request.resource.data.donorAvailability
+            ));
+
+      allow update: if owner(uid)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.keys().hasOnly([
+          'uid','displayName','email','emailVerified','phone','bloodGroup',
+          'area','donorConsent','donorAvailability','preferredLanguage',
+          'consentTimestamp','createdAt','updatedAt'
+        ])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName','phone','bloodGroup','area','donorConsent',
+          'donorAvailability','preferredLanguage','consentTimestamp','updatedAt'
+        ])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() >= 1
+        && request.resource.data.displayName.size() <= 80
+        && request.resource.data.donorConsent is bool
+        && request.resource.data.donorAvailability in ['available','paused']
+        && validLanguage(request.resource.data.preferredLanguage)
+        && (!('bloodGroup' in request.resource.data) || validBloodGroup(request.resource.data.bloodGroup))
+        && (!('area' in request.resource.data) || validArea(request.resource.data.area))
+        && (!('phone' in request.resource.data) || (request.resource.data.phone is string && request.resource.data.phone.size() <= 20))
+        && (
+          (request.resource.data.donorConsent == false
+            && request.resource.data.donorAvailability == 'paused'
+            && !existsAfter(/databases/$(database)/documents/donor_public/$(uid)))
+          ||
+          (request.resource.data.donorConsent == true
+            && 'bloodGroup' in request.resource.data
+            && 'area' in request.resource.data
+            && existsAfter(/databases/$(database)/documents/donor_public/$(uid))
+            && getAfter(/databases/$(database)/documents/donor_public/$(uid)).data.bloodGroup == request.resource.data.bloodGroup
+            && getAfter(/databases/$(database)/documents/donor_public/$(uid)).data.area == request.resource.data.area
+            && getAfter(/databases/$(database)/documents/donor_public/$(uid)).data.donorAvailability == request.resource.data.donorAvailability)
+        );
+
+      allow delete: if owner(uid) || admin();
+    }
+
+    // Minimal public donor card only. No phone/email fields are permitted.
+    match /donor_public/{uid} {
+      // Consent is enforced at WRITE time (donor_public exists only while
+      // users_private.donorConsent == true), so reads only check availability.
+      // get()/getAfter() with the per-document uid cannot be evaluated for list queries.
+      function activeConsentedDonor() {
+        return resource.data.donorAvailability == 'available';
+      }
+
+      allow get: if activeConsentedDonor();
+      allow list: if request.query.limit <= 20
+        && activeConsentedDonor();
+
+      allow create, update: if owner(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.keys().hasOnly([
+          'uid','displayName','displayNameInitial','bloodGroup','area',
+          'donorAvailability','updatedAt'
+        ])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() <= 80
+        && validBloodGroup(request.resource.data.bloodGroup)
+        && validArea(request.resource.data.area)
+        && request.resource.data.donorAvailability in ['available','paused']
+        && getAfter(/databases/$(database)/documents/users_private/$(uid)).data.donorConsent == true
+        && getAfter(/databases/$(database)/documents/users_private/$(uid)).data.bloodGroup == request.resource.data.bloodGroup
+        && getAfter(/databases/$(database)/documents/users_private/$(uid)).data.area == request.resource.data.area
+        && getAfter(/databases/$(database)/documents/users_private/$(uid)).data.donorAvailability == request.resource.data.donorAvailability;
+
+      allow delete: if owner(uid) || admin();
+    }
+
+    match /contact_requests/{id} {
+      allow get, list: if signedIn() && (
+        resource.data.requesterId == request.auth.uid ||
+        resource.data.donorId == request.auth.uid ||
+        admin()
+      );
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'id','requesterId','requesterName','donorId','bloodGroup','area',
+          'message','status','createdAt','respondedAt','donorContactRevealed'
+        ])
+        && request.resource.data.id == id
+        && request.resource.data.requesterId == request.auth.uid
+        && request.resource.data.requesterName is string
+        && request.resource.data.donorId is string
+        && request.resource.data.donorId != request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.respondedAt == null
+        && request.resource.data.donorContactRevealed == null
+        && validBloodGroup(request.resource.data.bloodGroup)
+        && validArea(request.resource.data.area)
+        && request.resource.data.message is string
+        && request.resource.data.message.size() <= 300
+        && get(/databases/$(database)/documents/donor_public/$(request.resource.data.donorId)).data.donorAvailability == 'available'
+        && get(/databases/$(database)/documents/users_private/$(request.resource.data.donorId)).data.donorConsent == true;
+
+      allow update: if signedIn() && (
+        (
+          resource.data.donorId == request.auth.uid
+          && resource.data.status == 'pending'
+          && request.resource.data.status in ['accepted','declined']
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status','respondedAt','donorContactRevealed'
+          ])
+          && request.resource.data.respondedAt is number
+          && (
+            (request.resource.data.status == 'declined' && request.resource.data.donorContactRevealed == null)
+            ||
+            (
+              request.resource.data.status == 'accepted'
+              && request.resource.data.donorContactRevealed is map
+              && request.resource.data.donorContactRevealed.keys().hasOnly(['phone','email'])
+              && request.resource.data.donorContactRevealed.get('phone', null) == get(/databases/$(database)/documents/users_private/$(request.auth.uid)).data.get('phone', null)
+              && request.resource.data.donorContactRevealed.get('email', null) == get(/databases/$(database)/documents/users_private/$(request.auth.uid)).data.get('email', null)
+            )
+          )
+        )
+        ||
+        (
+          resource.data.requesterId == request.auth.uid
+          && resource.data.status == 'pending'
+          && request.resource.data.status == 'cancelled'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        )
+        || admin()
+      );
+
+      allow delete: if (signedIn() && (
+        resource.data.requesterId == request.auth.uid ||
+        resource.data.donorId == request.auth.uid
+      )) || admin();
+    }
+
+    // Public blood request data contains contact details only if the owner
+    // explicitly opted into public display in the creation form.
+    match /blood_requests/{id} {
+      allow get: if (resource.data.status == 'open' || owner(resource.data.ownerId) || admin());
+      allow list: if request.query.limit <= 100
+        && (resource.data.status == 'open' || owner(resource.data.ownerId) || admin());
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'id','ownerId','ownerName','bloodGroup','area','hospitalName',
+          'neededAt','units','urgency','notes','contactMethod','contactPublicly',
+          'status','createdAt','updatedAt','reportCount'
+        ])
+        && request.resource.data.id == id
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerName is string
+        && validBloodGroup(request.resource.data.bloodGroup)
+        && validArea(request.resource.data.area)
+        && request.resource.data.status == 'open'
+        && request.resource.data.units is int
+        && request.resource.data.units > 0
+        && request.resource.data.units <= 20
+        && request.resource.data.urgency in ['normal','urgent','critical']
+        && request.resource.data.hospitalName is string
+        && request.resource.data.hospitalName.size() > 0
+        && request.resource.data.hospitalName.size() <= 150
+        && request.resource.data.neededAt is number
+        && request.resource.data.contactPublicly is bool
+        && (
+          (request.resource.data.contactPublicly == true
+            && request.resource.data.contactMethod is string
+            && request.resource.data.contactMethod.size() > 0
+            && request.resource.data.contactMethod.size() <= 100)
+          ||
+          (request.resource.data.contactPublicly == false
+            && !('contactMethod' in request.resource.data))
+        )
+        && (!('notes' in request.resource.data) || (request.resource.data.notes is string && request.resource.data.notes.size() <= 1000));
+
+      allow update: if signedIn() && (
+        (
+          resource.data.ownerId == request.auth.uid
+          && request.resource.data.ownerId == resource.data.ownerId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
+          && request.resource.data.status in ['open','fulfilled','cancelled','expired']
+          && request.resource.data.updatedAt is number
+        )
+        || admin()
+      );
+
+      allow delete: if (signedIn() && resource.data.ownerId == request.auth.uid) || admin();
+    }
+
+    // Private contact details for blood requests. Never listable or public.
+    match /blood_request_contacts/{requestId} {
+      allow get: if signedIn() && (
+        resource.data.ownerId == request.auth.uid || admin()
+      );
+      allow list: if false;
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['requestId','ownerId','contactMethod','createdAt','updatedAt'])
+        && request.resource.data.requestId == requestId
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.contactMethod is string
+        && request.resource.data.contactMethod.size() > 0
+        && request.resource.data.contactMethod.size() <= 100
+        && request.resource.data.createdAt is number
+        && request.resource.data.updatedAt is number
+        && getAfter(/databases/$(database)/documents/blood_requests/$(requestId)).data.ownerId == request.auth.uid;
+
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['contactMethod','updatedAt'])
+        && request.resource.data.contactMethod is string
+        && request.resource.data.contactMethod.size() > 0
+        && request.resource.data.contactMethod.size() <= 100;
+
+      allow delete: if (signedIn() && resource.data.ownerId == request.auth.uid) || admin();
+    }
+
+    // A donor's offer to help on a request. Contact is visible only to the
+    // request owner, the donor who wrote it, and admins.
+    match /request_responses/{id} {
+      allow get: if signedIn() && (
+        resource == null ||
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.donorId == request.auth.uid ||
+        admin()
+      );
+      allow list: if signedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.donorId == request.auth.uid ||
+        admin()
+      );
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'id','requestId','ownerId','donorId','donorName','message','contact','createdAt'
+        ])
+        && request.resource.data.id == id
+        && request.resource.data.requestId is string
+        && id == request.resource.data.requestId + '_' + request.auth.uid
+        && request.resource.data.donorId == request.auth.uid
+        && request.resource.data.ownerId != request.auth.uid
+        && request.resource.data.donorName is string
+        && request.resource.data.donorName.size() <= 80
+        && request.resource.data.message is string
+        && request.resource.data.message.size() <= 300
+        && request.resource.data.contact is string
+        && request.resource.data.contact.size() > 0
+        && request.resource.data.contact.size() <= 100
+        && request.resource.data.createdAt is number
+        && get(/databases/$(database)/documents/blood_requests/$(request.resource.data.requestId)).data.ownerId == request.resource.data.ownerId
+        && get(/databases/$(database)/documents/blood_requests/$(request.resource.data.requestId)).data.status == 'open';
+
+      allow update: if false;
+
+      allow delete: if signedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.donorId == request.auth.uid ||
+        admin()
+      );
+    }
+
+    match /reports/{id} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'id','targetType','targetId','reporterId','reason','createdAt','status'
+        ])
+        && request.resource.data.id == id
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.targetType in ['blood_request','donor','contact_request']
+        && request.resource.data.targetId is string
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() > 0
+        && request.resource.data.reason.size() <= 500
+        && request.resource.data.status == 'open';
+
+      allow get, list, update, delete: if admin();
+    }
+  }
+}

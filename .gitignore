@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+.env.local
+*.local
+
+# Never commit Firebase service account keys.
+scripts/serviceAccountKey.json
+scripts/*.json
+!scripts/package.json
