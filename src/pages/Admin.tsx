@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@/i18n/I18nContext";
+import { useAuth } from "@/context/AuthContext";
 import { backend } from "@/services";
 import { Alert, Badge, Button, Card, EmptyState, Input, Spinner } from "@/components/ui";
 import { AREA_LABELS } from "@/utils/constants";
@@ -8,6 +9,7 @@ import type { BloodRequest, Report, UserProfile } from "@/types";
 
 export default function Admin() {
   const { t, lang } = useI18n();
+  const { backendMode } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
   const [requests, setRequests] = useState<BloodRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +63,7 @@ export default function Admin() {
     <div className="space-y-4">
       {error && <Alert tone="danger">{error}</Alert>}
       <h1 className="text-xl font-bold text-stone-800">{t("admin.title")}</h1>
-      <Alert tone="info">{t("admin.notConfigured")}</Alert>
+      {backendMode === "demo" && <Alert tone="info">{t("admin.notConfigured")}</Alert>}
 
       <div className="flex gap-2">
         <Button size="sm" variant={tab === "reports" ? "primary" : "outline"} onClick={() => setTab("reports")}>

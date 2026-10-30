@@ -1,37 +1,14 @@
 import { useEffect, useState } from "react";
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-}
+import { getPwaState, promptPwaInstall, subscribePwa } from "@/pwa";
 
 export function useInstallPrompt() {
-  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
-  const [installed, setInstalled] = useState(
-    window.matchMedia?.("(display-mode: standalone)").matches ?? false
-  );
+  const [state, setState] = useState(getPwaState);
 
   useEffect(() => {
-    const onPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferred(e as BeforeInstallPromptEvent);
-    };
-    const onInstalled = () => setInstalled(true);
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    window.addEventListener("appinstalled", onInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onPrompt);
-      window.removeEventListener("appinstalled", onInstalled);
-    };
+    // Re-read immediately: the event may already have fired before this mounted.
+    setState(getPwaState());
+    return subscribePwa(() => setState(getPwaState()));
   }, []);
 
-  const promptInstall = async () => {
-    if (!deferred) return false;
-    await deferred.prompt();
-    const choice = await deferred.userChoice;
-    setDeferred(null);
-    return choice.outcome === "accepted";
-  };
-
-  return { canInstall: Boolean(deferred) && !installed, installed, promptInstall };
+  return { canInstall: state.canInstall, installed: state.installed, promptInstall: promptPwaInstall };
 }

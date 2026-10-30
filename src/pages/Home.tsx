@@ -4,10 +4,12 @@ import { useAuth } from "@/context/AuthContext";
 import { Alert, Button, Card } from "@/components/ui";
 import { AREA_LABELS } from "@/utils/constants";
 import { LogoMark } from "@/components/Logo";
+import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 
 export default function Home() {
   const { t, lang } = useI18n();
   const { user, backendMode } = useAuth();
+  const { canInstall, promptInstall } = useInstallPrompt();
 
   return (
     <div className="space-y-5">
@@ -29,6 +31,17 @@ export default function Home() {
           📍 {t("home.scopeNotice")}
         </p>
       </Card>
+
+      {canInstall && (
+        <Card className="flex items-center justify-between gap-3">
+          <span className="text-sm font-medium text-stone-700">
+            📲 {lang === "bn" ? "অ্যাপটি ফোনে ইনস্টল করুন" : "Install the app on your phone"}
+          </span>
+          <Button size="sm" onClick={promptInstall}>
+            {lang === "bn" ? "ইনস্টল" : "Install"}
+          </Button>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Link to="/donors">

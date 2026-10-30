@@ -72,8 +72,8 @@ export default function Settings() {
         ) : (
           <p className="text-xs text-stone-500">
             {lang === "bn"
-              ? "Chrome মেনু (⋮) খুলে \"Install app\" বা \"Add to Home screen\" চাপুন।"
-              : 'Open the Chrome menu (⋮) and tap "Install app" or "Add to Home screen".'}
+              ? "Chrome মেনু (⋮) খুলে \"Install app\" বা \"Add to Home screen\" চাপুন। iPhone-এ Safari-র Share বাটন চেপে \"Add to Home Screen\" বেছে নিন।"
+              : 'Open the Chrome menu (⋮) and tap "Install app" or "Add to Home screen". On iPhone, use Safari\'s Share button, then "Add to Home Screen".'}
           </p>
         )}
       </Card>
