@@ -3,6 +3,7 @@ import { useI18n } from "@/i18n/I18nContext";
 import { backend } from "@/services";
 import { Alert, Badge, Button, Card, EmptyState, Input, Spinner } from "@/components/ui";
 import { AREA_LABELS } from "@/utils/constants";
+import { describeError } from "@/utils/errors";
 import type { BloodRequest, Report, UserProfile } from "@/types";
 
 export default function Admin() {
@@ -10,12 +11,14 @@ export default function Admin() {
   const [reports, setReports] = useState<Report[]>([]);
   const [requests, setRequests] = useState<BloodRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"reports" | "requests" | "users">("reports");
 
   const load = async () => {
     setLoading(true);
+    setError(null);
     try {
       const [r, b, u] = await Promise.all([
         backend.adminListReports(),
@@ -25,8 +28,8 @@ export default function Admin() {
       setReports(r);
       setRequests(b);
       setUsers(u);
-    } catch {
-      alert(t("error.generic"));
+    } catch (err) {
+      setError(describeError(err, lang));
     } finally {
       setLoading(false);
     }
@@ -56,6 +59,7 @@ export default function Admin() {
 
   return (
     <div className="space-y-4">
+      {error && <Alert tone="danger">{error}</Alert>}
       <h1 className="text-xl font-bold text-stone-800">{t("admin.title")}</h1>
       <Alert tone="info">{t("admin.notConfigured")}</Alert>
 

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@/i18n/I18nContext";
 import { backend } from "@/services";
-import { Badge, Button, Card, EmptyState, Spinner } from "@/components/ui";
+import { Alert, Badge, Button, Card, EmptyState, Spinner } from "@/components/ui";
+import { describeError } from "@/utils/errors";
 import type { ContactRequest, ContactRequestStatus } from "@/types";
 
 const STATUS_TONE: Record<ContactRequestStatus, "neutral" | "success" | "danger" | "warning"> = {
@@ -12,18 +13,25 @@ const STATUS_TONE: Record<ContactRequestStatus, "neutral" | "success" | "danger"
 };
 
 export default function ContactInbox() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [tab, setTab] = useState<"received" | "sent">("received");
   const [received, setReceived] = useState<ContactRequest[]>([]);
   const [sent, setSent] = useState<ContactRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const [r, s] = await Promise.all([backend.listReceivedContactRequests(), backend.listSentContactRequests()]);
-    setReceived(r);
-    setSent(s);
-    setLoading(false);
+    setError(null);
+    try {
+      const [r, s] = await Promise.all([backend.listReceivedContactRequests(), backend.listSentContactRequests()]);
+      setReceived(r);
+      setSent(s);
+    } catch (err) {
+      setError(describeError(err, lang));
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -52,6 +60,7 @@ export default function ContactInbox() {
 
   return (
     <div className="space-y-4">
+      {error && <Alert tone="danger">{error}</Alert>}
       <h1 className="text-xl font-bold text-stone-800">{t("inbox.title")}</h1>
 
       <div className="flex gap-2">

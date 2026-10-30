@@ -113,17 +113,22 @@ class FirebaseBackend implements Backend {
     await updateProfile(cred.user, { displayName });
     await sendEmailVerification(cred.user);
     const now = Date.now();
-    await setDoc(doc(db, "users_private", cred.user.uid), {
-      uid: cred.user.uid,
-      displayName,
-      email,
-      emailVerified: false,
-      donorConsent: false,
-      donorAvailability: "paused",
-      preferredLanguage: "bn",
-      createdAt: now,
-      updatedAt: now,
-    } satisfies UserProfile);
+    try {
+      await setDoc(doc(db, "users_private", cred.user.uid), {
+        uid: cred.user.uid,
+        displayName,
+        email: cred.user.email ?? email,
+        emailVerified: false,
+        donorConsent: false,
+        donorAvailability: "paused",
+        preferredLanguage: "bn",
+        createdAt: now,
+        updatedAt: now,
+      } satisfies UserProfile);
+    } catch {
+      // The account exists already; the profile document is created on first
+      // "save profile" instead of failing the whole registration.
+    }
   }
 
   async signInWithEmail(email: string, password: string): Promise<void> {
@@ -222,8 +227,11 @@ class FirebaseBackend implements Backend {
     const profile: UserProfile = {
       uid: user.uid,
       displayName: input.displayName,
-      email: user.email,
-      emailVerified: user.emailVerified,
+      // Keep the stored values: Firestore rules forbid changing email/emailVerified
+      // (the typed email may differ in letter case from user.email, and
+      // emailVerified flips after the user verifies their address).
+      email: existing ? existing.email : user.email,
+      emailVerified: existing ? existing.emailVerified : user.emailVerified,
       phone: input.phone,
       bloodGroup: input.bloodGroup,
       area: input.area,

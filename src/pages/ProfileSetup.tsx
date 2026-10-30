@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { describeError } from "@/utils/errors";
 import { useI18n } from "@/i18n/I18nContext";
 import { useAuth } from "@/context/AuthContext";
 import { backend } from "@/services";
@@ -59,8 +60,8 @@ export default function ProfileSetup() {
       });
       await refreshProfile();
       setSuccess(t("profile.saveSuccess"));
-    } catch {
-      setError(t("error.generic"));
+    } catch (err) {
+      setError(describeError(err, lang));
     } finally {
       setSaving(false);
     }

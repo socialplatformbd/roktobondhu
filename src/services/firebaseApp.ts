@@ -12,4 +12,8 @@ export const auth = getAuth(firebaseApp);
 // undefined; without this Firestore throws on setDoc/batch.set.
 export const db = existing.length
   ? getFirestore(firebaseApp)
-  : initializeFirestore(firebaseApp, { ignoreUndefinedProperties: true });
+  : initializeFirestore(firebaseApp, {
+      ignoreUndefinedProperties: true,
+      // Falls back to long polling on networks that block Firestore streaming.
+      experimentalAutoDetectLongPolling: true,
+    });

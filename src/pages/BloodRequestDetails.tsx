@@ -32,7 +32,12 @@ export default function BloodRequestDetails() {
 
   const load = async () => {
     if (!id) return;
-    const r = await backend.getBloodRequest(id);
+    let r: BloodRequest | null = null;
+    try {
+      r = await backend.getBloodRequest(id);
+    } catch {
+      r = null;
+    }
     setReq(r);
     if (r && user) {
       if (r.ownerId === user.uid) {

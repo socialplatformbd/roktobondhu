@@ -54,3 +54,15 @@
 - `vite.config.ts` `base: "./"`, manifest/sw/index.html relative path, তাই `/roktobondhu/` সাবপাথেও PWA চলে।
 - `.github/workflows/deploy.yml` (build + Pages), `firestore-deploy.yml` (rules+indexes), `set-admin.yml` (admin claim) এবং `firebase.json` যোগ।
 - Secrets লাগে: `VITE_FIREBASE_*` ছয়টি এবং `FIREBASE_SERVICE_ACCOUNT` (পুরো JSON)।
+
+## পঞ্চম সংশোধন: অন্তহীন লোডিং ঠিক
+- ইনবক্স, অ্যাডমিন, ডোনার তালিকা, রক্তের অনুরোধ, আমার অনুরোধ পেজে ডেটা আনতে error হলে আগে স্পিনার চলতেই থাকত। এখন পেজে লাল বার্তায় কারণ দেখায় (যেমন `permission-denied` মানে Firestore rules ডিপ্লয় হয়নি, `failed-precondition` মানে index নেই)।
+- `ErrorBoundary` যোগ: অ্যাপ ক্র্যাশ করলে ফাঁকা সাদা পেজের বদলে error লেখা দেখায়।
+- `AdminRoute`-এর অধিকার যাচাই আটকে গেলেও আর স্পিনারে থাকে না।
+- Firestore-এ `experimentalAutoDetectLongPolling` চালু (যেসব নেটওয়ার্কে সরাসরি সংযোগ আটকায় সেখানে বিকল্প পথ নেয়)।
+
+## ষষ্ঠ সংশোধন: প্রোফাইল সেভ
+- `saveMyProfile` এখন সংরক্ষিত `email` ও `emailVerified` অপরিবর্তিত রাখে (rules এ দুটো বদলানো নিষিদ্ধ; টাইপ করা ইমেইলের অক্ষরের ছাঁদ `user.email` থেকে আলাদা হলে, বা ইমেইল ভেরিফাই হওয়ার পর সেভ আটকে যেত)।
+- রেজিস্ট্রেশনের সময় প্রোফাইল ডকুমেন্ট তৈরি ব্যর্থ হলেও রেজিস্ট্রেশন ভাঙে না; প্রথম "সেভ" করলে ডকুমেন্ট তৈরি হয়।
+- প্রোফাইল সেভ, যোগাযোগের অনুরোধ ও রক্তের অনুরোধ ফর্মে error হলে এখন আসল কারণ-কোড দেখায়।
+- Firestore rules বদলায়নি, নতুন করে rules deploy লাগবে না।

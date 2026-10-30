@@ -3,6 +3,7 @@ import { useI18n } from "@/i18n/I18nContext";
 import { useAuth } from "@/context/AuthContext";
 import { backend } from "@/services";
 import { Link } from "react-router-dom";
+import { describeError } from "@/utils/errors";
 import { Alert, Badge, Button, Card, EmptyState, Select, Spinner, Textarea } from "@/components/ui";
 import { AREA_LABELS } from "@/utils/constants";
 import { BLOOD_GROUPS, type AreaId, type BloodGroup, type UserProfile } from "@/types";
@@ -16,6 +17,7 @@ export default function DonorDirectory() {
   const [items, setItems] = useState<UserProfile[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [activeDonor, setActiveDonor] = useState<UserProfile | null>(null);
 
@@ -31,6 +33,9 @@ export default function DonorDirectory() {
       const page = await backend.searchDonors({ bloodGroup, area }, reset ? null : cursor);
       setItems((prev) => (reset ? page.items : [...prev, ...page.items]));
       setCursor(page.cursor);
+      setError(null);
+    } catch (err) {
+      setError(describeError(err, lang));
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -44,6 +49,7 @@ export default function DonorDirectory() {
 
   return (
     <div className="space-y-4">
+      {error && <Alert tone="danger">{error}</Alert>}
       <h1 className="text-xl font-bold text-stone-800">{t("donors.title")}</h1>
 
       <Card className="grid grid-cols-2 gap-3">
@@ -122,7 +128,7 @@ export function ContactModal({
   isSignedIn: boolean;
   onClose: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
@@ -134,8 +140,8 @@ export function ContactModal({
     try {
       await backend.sendContactRequest(donor.uid, message.trim());
       setDone(true);
-    } catch {
-      setError(t("error.generic"));
+    } catch (err) {
+      setError(describeError(err, lang));
     } finally {
       setSending(false);
     }

@@ -17,7 +17,7 @@ export default function DonorDetails() {
 
   useEffect(() => {
     if (!uid) return;
-    backend.getDonorPublic(uid).then(setDonor);
+    backend.getDonorPublic(uid).then(setDonor).catch(() => setDonor(null));
   }, [uid]);
 
   if (donor === undefined) {

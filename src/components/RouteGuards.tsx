@@ -34,12 +34,20 @@ export function AdminRoute({ children }: { children: ReactNode }) {
       setChecking(false);
       return;
     }
-    backend.isCurrentUserAdmin().then((v) => {
-      if (active) {
-        setIsAdmin(v);
-        setChecking(false);
-      }
-    });
+    backend
+      .isCurrentUserAdmin()
+      .then((v) => {
+        if (active) {
+          setIsAdmin(v);
+          setChecking(false);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setIsAdmin(false);
+          setChecking(false);
+        }
+      });
     return () => {
       active = false;
     };

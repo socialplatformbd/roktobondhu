@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useI18n } from "@/i18n/I18nContext";
 import { useAuth } from "@/context/AuthContext";
 import { backend } from "@/services";
+import { describeError } from "@/utils/errors";
 import { Alert, Badge, Button, Card, EmptyState, Select, Spinner } from "@/components/ui";
 import { AREA_LABELS } from "@/utils/constants";
 import { BLOOD_GROUPS, type AreaId, type BloodGroup, type BloodRequest, type UrgencyLevel } from "@/types";
@@ -22,6 +23,7 @@ export default function BloodRequestList() {
   const [items, setItems] = useState<BloodRequest[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
   const runSearch = async (reset: boolean) => {
@@ -36,6 +38,9 @@ export default function BloodRequestList() {
       const page = await backend.listBloodRequests({ bloodGroup, area }, reset ? null : cursor);
       setItems((prev) => (reset ? page.items : [...prev, ...page.items]));
       setCursor(page.cursor);
+      setError(null);
+    } catch (err) {
+      setError(describeError(err, lang));
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -49,6 +54,7 @@ export default function BloodRequestList() {
 
   return (
     <div className="space-y-4">
+      {error && <Alert tone="danger">{error}</Alert>}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-stone-800">{t("requests.title")}</h1>
         {user && (

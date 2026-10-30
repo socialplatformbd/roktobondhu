@@ -30,13 +30,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubscribe = backend.onAuthChange(async (u) => {
       setUser(u);
-      if (u) {
-        const p = await backend.getMyProfile();
-        setProfile(p);
-      } else {
+      try {
+        setProfile(u ? await backend.getMyProfile() : null);
+      } catch {
+        // e.g. Firestore rules not deployed yet: never leave the app stuck loading.
         setProfile(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
     return unsubscribe;
   }, []);

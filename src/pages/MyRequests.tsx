@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useI18n } from "@/i18n/I18nContext";
 import { backend } from "@/services";
-import { Badge, Button, Card, EmptyState, Spinner } from "@/components/ui";
+import { Alert, Badge, Button, Card, EmptyState, Spinner } from "@/components/ui";
+import { describeError } from "@/utils/errors";
 import { AREA_LABELS } from "@/utils/constants";
 import type { BloodRequest } from "@/types";
 
@@ -17,16 +18,19 @@ export default function MyRequests() {
   const { t, lang } = useI18n();
   const [items, setItems] = useState<BloodRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    backend.listMyBloodRequests().then((r) => {
-      setItems(r);
-      setLoading(false);
-    });
+    backend
+      .listMyBloodRequests()
+      .then((r) => setItems(r))
+      .catch((err) => setError(describeError(err, lang)))
+      .finally(() => setLoading(false));
   }, []);
 
   return (
     <div className="space-y-4">
+      {error && <Alert tone="danger">{error}</Alert>}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-stone-800">{t("requests.myTitle")}</h1>
         <Link to="/requests/new">

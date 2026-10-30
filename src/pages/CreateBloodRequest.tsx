@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { describeError } from "@/utils/errors";
 import { useNavigate } from "react-router-dom";
 import { useI18n } from "@/i18n/I18nContext";
 import { backend } from "@/services";
@@ -55,7 +56,7 @@ export default function CreateBloodRequest() {
       if (msg.includes("duplicate")) {
         setError(t("requests.duplicateWarning"));
       } else {
-        setError(t("error.generic"));
+        setError(describeError(err, lang));
       }
     } finally {
       setSaving(false);
