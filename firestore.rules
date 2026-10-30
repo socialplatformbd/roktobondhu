@@ -272,6 +272,26 @@ service cloud.firestore {
       allow delete: if (signedIn() && resource.data.ownerId == request.auth.uid) || admin();
     }
 
+    // Optional bio + small photo. Readable by signed-in users only; never listable.
+    match /donor_profiles/{uid} {
+      allow get: if signedIn();
+      allow list: if false;
+
+      allow create, update: if owner(uid)
+        && request.resource.data.keys().hasOnly(['uid','bio','photo','updatedAt'])
+        && request.resource.data.uid == uid
+        && request.resource.data.bio is string
+        && request.resource.data.bio.size() <= 150
+        && (!('photo' in request.resource.data) || (
+              request.resource.data.photo is string
+              && request.resource.data.photo.size() <= 45000
+              && request.resource.data.photo.matches('data:image/jpeg;base64,.*')))
+        && request.resource.data.updatedAt is number
+        && getAfter(/databases/$(database)/documents/users_private/$(uid)).data.donorConsent == true;
+
+      allow delete: if owner(uid) || admin();
+    }
+
     // A donor's offer to help on a request. Contact is visible only to the
     // request owner, the donor who wrote it, and admins.
     match /request_responses/{id} {

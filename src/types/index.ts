@@ -58,6 +58,15 @@ export interface UserProfile {
   updatedAt: number;
 }
 
+// Optional donor bio + small profile photo (JPEG data URL). Readable only by
+// signed-in users; never part of the public directory.
+export interface DonorExtra {
+  uid: string;
+  bio: string;
+  photo?: string;
+  updatedAt: number;
+}
+
 // Public, minimal donor directory record. Must never contain phone/email.
 export interface DonorPublic {
   uid: string;

@@ -5,7 +5,53 @@ import { backend } from "@/services";
 import { Alert, Badge, Button, Card, EmptyState, Input, Spinner } from "@/components/ui";
 import { AREA_LABELS } from "@/utils/constants";
 import { describeError } from "@/utils/errors";
-import type { BloodRequest, Report, UserProfile } from "@/types";
+import type { BloodRequest, DonorExtra, Report, UserProfile } from "@/types";
+
+function UserExtraView({ uid, lang }: { uid: string; lang: "bn" | "en" }) {
+  const [open, setOpen] = useState(false);
+  const [extra, setExtra] = useState<DonorExtra | null>(null);
+  const [removed, setRemoved] = useState(false);
+
+  const toggle = async () => {
+    if (!open) setExtra(await backend.getDonorExtra(uid));
+    setOpen(!open);
+  };
+  const remove = async () => {
+    if (!window.confirm(lang === "bn" ? "ছবি ও বায়ো মুছে ফেলবেন?" : "Remove this photo and bio?")) return;
+    try {
+      await backend.adminRemoveDonorExtra(uid);
+      setExtra(null);
+      setRemoved(true);
+    } catch {
+      alert(lang === "bn" ? "মুছতে পারা যায়নি।" : "Could not remove.");
+    }
+  };
+
+  return (
+    <div className="pt-1">
+      <button type="button" className="text-xs font-semibold text-brand-700" onClick={toggle}>
+        {open ? (lang === "bn" ? "ছবি/বায়ো লুকান" : "Hide photo/bio") : (lang === "bn" ? "ছবি/বায়ো দেখুন" : "View photo/bio")}
+      </button>
+      {open && (
+        <div className="mt-2 space-y-2 rounded-xl bg-stone-50 p-3">
+          {extra ? (
+            <>
+              {extra.photo && <img src={extra.photo} alt="" className="h-20 w-20 rounded-full object-cover" />}
+              {extra.bio && <p className="text-sm text-stone-700">“{extra.bio}”</p>}
+              <button type="button" className="text-xs font-semibold text-red-600" onClick={remove}>
+                {lang === "bn" ? "ছবি ও বায়ো মুছুন" : "Remove photo & bio"}
+              </button>
+            </>
+          ) : (
+            <p className="text-xs text-stone-500">
+              {removed ? (lang === "bn" ? "মুছে ফেলা হয়েছে।" : "Removed.") : (lang === "bn" ? "ছবি/বায়ো নেই।" : "No photo/bio.")}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Admin() {
   const { t, lang } = useI18n();
@@ -140,6 +186,7 @@ export default function Admin() {
                     <Badge tone={u.donorAvailability === "available" ? "success" : "warning"}>{u.donorAvailability}</Badge>
                   )}
                 </div>
+                {u.donorConsent && <UserExtraView uid={u.uid} lang={lang} />}
                 <p className="text-xs text-stone-400">
                   {lang === "bn" ? "যোগ দিয়েছেন" : "Joined"}: {new Date(u.createdAt).toLocaleDateString()} · UID: {u.uid}
                 </p>

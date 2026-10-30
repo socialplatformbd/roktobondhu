@@ -1,4 +1,5 @@
 import type {
+  DonorExtra,
   AuthUser,
   BloodRequest,
   BloodRequestResponse,
@@ -35,6 +36,7 @@ const K_BLOOD_REQS = "rb_demo_blood_requests";
 const K_REPORTS = "rb_demo_reports";
 const K_ADMIN = "rb_demo_admin";
 const K_RESPONSES = "rb_demo_responses";
+const K_EXTRA = "rb_demo_donor_extra";
 
 type Listener = (user: AuthUser | null) => void;
 
@@ -74,6 +76,13 @@ function loadResponses(): BloodRequestResponse[] {
 }
 function saveResponses(list: BloodRequestResponse[]) {
   writeJson(K_RESPONSES, list);
+}
+
+function loadExtra(): Record<string, DonorExtra> {
+  return readJson<Record<string, DonorExtra>>(K_EXTRA, {});
+}
+function saveExtra(x: Record<string, DonorExtra>) {
+  writeJson(K_EXTRA, x);
 }
 
 function currentSessionUid(): string | null {
@@ -211,6 +220,9 @@ class MockBackend implements Backend {
     const profiles = loadProfiles();
     delete profiles[uid];
     saveProfiles(profiles);
+    const extras = loadExtra();
+    delete extras[uid];
+    saveExtra(extras);
     saveContactReqs(loadContactReqs().filter((c) => c.requesterId !== uid && c.donorId !== uid));
     saveBloodReqs(loadBloodReqs().filter((b) => b.ownerId !== uid));
     saveResponses(loadResponses().filter((r) => r.ownerId !== uid && r.donorId !== uid));
@@ -250,6 +262,17 @@ class MockBackend implements Backend {
     };
     saveProfiles(profiles);
 
+    const extras = loadExtra();
+    const cur = extras[uid];
+    const bio = input.bio !== undefined ? input.bio.trim().slice(0, 150) : cur?.bio ?? "";
+    const photo = input.photo === null ? undefined : input.photo !== undefined ? input.photo : cur?.photo;
+    if (input.donorConsent && input.bloodGroup && input.area && (bio || photo)) {
+      extras[uid] = { uid, bio, ...(photo ? { photo } : {}), updatedAt: now };
+    } else {
+      delete extras[uid];
+    }
+    saveExtra(extras);
+
     // Keep the account's display name in sync
     const accounts = loadAccounts();
     const idx = accounts.findIndex((a) => a.uid === uid);
@@ -270,6 +293,9 @@ class MockBackend implements Backend {
       profiles[uid].updatedAt = Date.now();
       saveProfiles(profiles);
     }
+    const extras = loadExtra();
+    delete extras[uid];
+    saveExtra(extras);
   }
 
   async searchDonors(filters: DonorSearchFilters, cursor: string | null): Promise<DonorSearchPage> {
@@ -481,6 +507,17 @@ class MockBackend implements Backend {
         saveBloodReqs(reqs);
       }
     }
+  }
+
+  async getDonorExtra(uid: string): Promise<DonorExtra | null> {
+    if (!currentSessionUid()) return null;
+    return loadExtra()[uid] ?? null;
+  }
+
+  async adminRemoveDonorExtra(uid: string): Promise<void> {
+    const extras = loadExtra();
+    delete extras[uid];
+    saveExtra(extras);
   }
 
   async respondToBloodRequest(requestId: string, message: string, contact: string): Promise<void> {

@@ -3,7 +3,8 @@ import { describeError } from "@/utils/errors";
 import { useI18n } from "@/i18n/I18nContext";
 import { useAuth } from "@/context/AuthContext";
 import { backend } from "@/services";
-import { Alert, Button, Input, Label, Select, Card } from "@/components/ui";
+import { Alert, Button, Input, Label, Select, Card, Textarea } from "@/components/ui";
+import { resizeToJpegDataUrl } from "@/utils/image";
 import { AREA_LABELS } from "@/utils/constants";
 import { BLOOD_GROUPS, type AreaId, type BloodGroup, type DonorAvailability } from "@/types";
 import { isValidBdPhone, normalizeBdPhone } from "@/utils/phone";
@@ -21,6 +22,9 @@ export default function ProfileSetup() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [bio, setBio] = useState("");
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [photoDirty, setPhotoDirty] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -32,6 +36,28 @@ export default function ProfileSetup() {
       setAvailability(profile.donorAvailability);
     }
   }, [profile]);
+
+  useEffect(() => {
+    if (!user) return;
+    backend.getDonorExtra(user.uid).then((x) => {
+      if (x) {
+        setBio(x.bio ?? "");
+        setPhoto(x.photo ?? null);
+      }
+    });
+  }, [user?.uid]);
+
+  const onPickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      setPhoto(await resizeToJpegDataUrl(file));
+      setPhotoDirty(true);
+    } catch {
+      setError(lang === "bn" ? "ছবিটি পড়া যায়নি। অন্য ছবি বেছে নিন।" : "Could not read that image. Try another one.");
+    }
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +83,10 @@ export default function ProfileSetup() {
         donorConsent: consent,
         donorAvailability: availability,
         preferredLanguage: lang,
+        bio: bio.trim(),
+        photo: photoDirty ? photo : undefined,
       });
+      setPhotoDirty(false);
       await refreshProfile();
       setSuccess(t("profile.saveSuccess"));
     } catch (err) {
@@ -150,6 +179,51 @@ export default function ProfileSetup() {
                 <option value="available">{t("profile.available")}</option>
                 <option value="paused">{t("profile.paused")}</option>
               </Select>
+            </div>
+          )}
+          {consent && (
+            <div className="space-y-3 border-t border-stone-100 pt-3">
+              <Label>
+                {lang === "bn" ? "ছবি ও বায়ো" : "Photo & bio"}{" "}
+                <span className="text-stone-400">({t("common.optional")})</span>
+              </Label>
+              <div className="flex items-center gap-3">
+                {photo ? (
+                  <img src={photo} alt="" className="h-20 w-20 rounded-full object-cover" />
+                ) : (
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-stone-100 text-2xl">👤</div>
+                )}
+                <div className="flex flex-col gap-2">
+                  <label className="inline-block cursor-pointer rounded-xl border border-stone-300 px-3 py-2 text-sm font-semibold text-stone-700">
+                    {lang === "bn" ? "ছবি বেছে নিন" : "Choose photo"}
+                    <input type="file" accept="image/*" className="hidden" onChange={onPickPhoto} />
+                  </label>
+                  {photo && (
+                    <button
+                      type="button"
+                      className="text-left text-xs font-semibold text-red-600"
+                      onClick={() => {
+                        setPhoto(null);
+                        setPhotoDirty(true);
+                      }}
+                    >
+                      {lang === "bn" ? "ছবি সরান" : "Remove photo"}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <Textarea
+                rows={3}
+                maxLength={150}
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder={lang === "bn" ? "নিজের সম্পর্কে ছোট করে লিখুন (সর্বোচ্চ ১৫০ অক্ষর)" : "A short line about yourself (max 150 characters)"}
+              />
+              <p className="text-xs text-stone-400">
+                {lang === "bn"
+                  ? "ছবি ও বায়ো শুধু লগইন করা ব্যবহারকারীরা আপনার বিস্তারিত পাতায় দেখতে পাবেন। পাবলিক তালিকায় দেখানো হয় না।"
+                  : "Your photo and bio are shown only to signed-in users on your details page, never in the public list."}
+              </p>
             </div>
           )}
           <p className="text-xs text-stone-400">{t("profile.noSensitiveData")}</p>

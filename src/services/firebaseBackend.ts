@@ -34,6 +34,7 @@ import type {
   BloodRequestResponse,
   BloodRequestStatus,
   ContactRequest,
+  DonorExtra,
   DonorPublic,
   Report,
   UserProfile,
@@ -192,6 +193,7 @@ class FirebaseBackend implements Backend {
     const refs = new Map<string, ReturnType<typeof doc>>();
     refs.set(`users_private/${uid}`, doc(db, "users_private", uid));
     refs.set(`donor_public/${uid}`, doc(db, "donor_public", uid));
+    refs.set(`donor_profiles/${uid}`, doc(db, "donor_profiles", uid));
     ownedRequests.docs.forEach((d) => refs.set(`blood_requests/${d.id}`, d.ref));
     ownedRequests.docs.forEach((d) => refs.set(`blood_request_contacts/${d.id}`, doc(db, "blood_request_contacts", d.id)));
     ownedResponses.docs.forEach((d) => refs.set(`request_responses/${d.id}`, d.ref));
@@ -245,6 +247,12 @@ class FirebaseBackend implements Backend {
     const batch = writeBatch(db);
     batch.set(doc(db, "users_private", user.uid), profile);
 
+    // Optional bio + photo, stored apart from the public donor card.
+    const extraSnap = await getDoc(doc(db, "donor_profiles", user.uid)).catch(() => null);
+    const currentExtra = extraSnap && extraSnap.exists() ? (extraSnap.data() as DonorExtra) : null;
+    const bio = input.bio !== undefined ? input.bio.trim().slice(0, 150) : currentExtra?.bio ?? "";
+    const photo = input.photo === null ? undefined : input.photo !== undefined ? input.photo : currentExtra?.photo;
+
     if (input.donorConsent && input.bloodGroup && input.area) {
       const firstName = input.displayName.trim().split(/\s+/)[0] || "User";
       const publicDoc: DonorPublic = {
@@ -257,8 +265,15 @@ class FirebaseBackend implements Backend {
         updatedAt: now,
       };
       batch.set(doc(db, "donor_public", user.uid), publicDoc);
+      if (bio || photo) {
+        const extra: DonorExtra = { uid: user.uid, bio, ...(photo ? { photo } : {}), updatedAt: now };
+        batch.set(doc(db, "donor_profiles", user.uid), extra);
+      } else {
+        batch.delete(doc(db, "donor_profiles", user.uid));
+      }
     } else {
       batch.delete(doc(db, "donor_public", user.uid));
+      batch.delete(doc(db, "donor_profiles", user.uid));
     }
     await batch.commit();
   }
@@ -273,6 +288,7 @@ class FirebaseBackend implements Backend {
       updatedAt: Date.now(),
     });
     batch.delete(doc(db, "donor_public", user.uid));
+    batch.delete(doc(db, "donor_profiles", user.uid));
     await batch.commit();
   }
 
@@ -305,6 +321,20 @@ class FirebaseBackend implements Backend {
     const nextCursor =
       snap.docs.length === PAGE_SIZE && last ? String((last.data() as DonorPublic).updatedAt) : null;
     return { items, cursor: nextCursor };
+  }
+
+  async getDonorExtra(uid: string): Promise<DonorExtra | null> {
+    if (!auth.currentUser) return null;
+    try {
+      const snap = await getDoc(doc(db, "donor_profiles", uid));
+      return snap.exists() ? (snap.data() as DonorExtra) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async adminRemoveDonorExtra(uid: string): Promise<void> {
+    await deleteDoc(doc(db, "donor_profiles", uid));
   }
 
   async getDonorPublic(uid: string): Promise<UserProfile | null> {

@@ -1,4 +1,5 @@
 import type {
+  DonorExtra,
   AreaId,
   AuthUser,
   BloodGroup,
@@ -41,6 +42,9 @@ export interface ProfileInput {
   donorConsent: boolean;
   donorAvailability: DonorAvailability;
   preferredLanguage: Lang;
+  bio?: string;
+  // string = new photo, null = remove photo, undefined = keep current photo
+  photo?: string | null;
 }
 
 export interface BloodRequestInput {
@@ -77,6 +81,8 @@ export interface Backend {
   // Donor directory
   searchDonors(filters: DonorSearchFilters, cursor: string | null): Promise<DonorSearchPage>;
   getDonorPublic(uid: string): Promise<UserProfile | null>;
+  // Bio + photo: only signed-in users can read these.
+  getDonorExtra(uid: string): Promise<DonorExtra | null>;
 
   // Contact requests
   sendContactRequest(donorUid: string, message: string): Promise<void>;
@@ -109,6 +115,7 @@ export interface Backend {
   // Admin
   isCurrentUserAdmin(): Promise<boolean>;
   adminListUsers(): Promise<UserProfile[]>;
+  adminRemoveDonorExtra(uid: string): Promise<void>;
   adminListReports(): Promise<Report[]>;
   adminResolveReport(id: string, status: "reviewed" | "dismissed"): Promise<void>;
   adminListOpenBloodRequests(): Promise<BloodRequest[]>;
